@@ -1,4 +1,4 @@
-# OA26 pose v3: P2/4 plus structure-aware auxiliary losses.
+# YOLO26 pose v3: P2/4 plus structure-aware auxiliary losses.
 
 nc: 1
 end2end: True

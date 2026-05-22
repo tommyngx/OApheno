@@ -1,4 +1,4 @@
-# OA26 pose v2: P2/4 plus heatmap and soft-argmax head.
+# YOLO26 pose v2: P2/4 plus heatmap and soft-argmax head.
 
 nc: 1
 end2end: True

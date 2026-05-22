@@ -1,15 +1,9 @@
-# OA26 pose v4: P2/4 plus heatmap, soft-argmax and structure-aware losses.
+# YOLO26 pose v1: YOLO26-pose with P2/4 feature map.
 
 nc: 1
 end2end: True
 reg_max: 1
 kpt_shape: [128, 3]
-oa26_loss:
-  heatmap: 1.0
-  coord: 0.5
-  neighbour: 0.25
-  curve: 0.25
-  sigma: 1.5
 scales:
   n: [0.50, 0.25, 1024]
   s: [0.50, 0.50, 1024]
@@ -49,4 +43,4 @@ head:
   - [-1, 1, Conv, [512, 3, 2]]
   - [[-1, 10], 1, Concat, [1]]
   - [-1, 1, C3k2, [1024, True, 0.5, True]] # 28-P5/32
-  - [[19, 22, 25, 28], 1, OA26HeatmapPose, [nc, kpt_shape, 128, 1.0]]
+  - [[19, 22, 25, 28], 1, Pose26, [nc, kpt_shape]]
