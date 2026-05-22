@@ -99,6 +99,8 @@ from ultralytics.utils.torch_utils import (
     smart_inference_mode,
     time_sync,
 )
+from ultralytics.nn.modules.oa26_modules import OA26HeatmapPose
+from ultralytics.utils.oa26_loss import OA26PoseLoss
 
 
 class BaseModel(torch.nn.Module):
@@ -694,7 +696,8 @@ class PoseModel(DetectionModel):
 
     def init_criterion(self):
         """Initialize the loss criterion for the PoseModel."""
-        return E2ELoss(self, PoseLoss26) if getattr(self, "end2end", False) else v8PoseLoss(self)
+        loss_fn = OA26PoseLoss if isinstance(self.model[-1], OA26HeatmapPose) else PoseLoss26
+        return E2ELoss(self, loss_fn) if getattr(self, "end2end", False) else loss_fn(self)
 
 
 class ClassificationModel(BaseModel):
@@ -1789,6 +1792,7 @@ def parse_model(d, ch, verbose=True):
                 YOLOESegment26,
                 Pose,
                 Pose26,
+                OA26HeatmapPose,
                 OBB,
                 OBB26,
             }
@@ -1796,7 +1800,19 @@ def parse_model(d, ch, verbose=True):
             args.extend([reg_max, end2end, [ch[x] for x in f]])
             if m is Segment or m is YOLOESegment or m is Segment26 or m is YOLOESegment26:
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
-            if m in {Detect, YOLOEDetect, Segment, Segment26, YOLOESegment, YOLOESegment26, Pose, Pose26, OBB, OBB26}:
+            if m in {
+                Detect,
+                YOLOEDetect,
+                Segment,
+                Segment26,
+                YOLOESegment,
+                YOLOESegment26,
+                Pose,
+                Pose26,
+                OA26HeatmapPose,
+                OBB,
+                OBB26,
+            }:
                 m.legacy = legacy
         elif m is SemanticSegment:
             args.append([ch[x] for x in f])  # nc, ch tuple
