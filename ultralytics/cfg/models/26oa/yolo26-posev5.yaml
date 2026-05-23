@@ -1,14 +1,14 @@
-# YOLO26 pose v4: P2/4 plus heatmap, soft-argmax and structure-aware losses.
+# YOLO26 pose v5: lighter v4 with reduced auxiliary loss gains.
 
 nc: 1
 end2end: True
 reg_max: 1
 kpt_shape: [128, 3]
 oa26_loss:
-  heatmap: 1.0
-  coord: 0.5
-  neighbour: 0.25
-  curve: 0.25
+  heatmap: 0.25
+  coord: 0.25
+  neighbour: 0.15
+  curve: 0.15
   sigma: 1.5
 scales:
   n: [0.50, 0.25, 1024]

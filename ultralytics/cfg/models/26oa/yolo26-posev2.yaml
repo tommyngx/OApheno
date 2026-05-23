@@ -49,4 +49,4 @@ head:
   - [-1, 1, Conv, [512, 3, 2]]
   - [[-1, 10], 1, Concat, [1]]
   - [-1, 1, C3k2, [1024, True, 0.5, True]]
-  - [[19, 22, 25, 28], 1, OA26HeatmapPose, [nc, kpt_shape, 128, 1.0]]
+  - [[19, 22, 25, 28], 1, OA26HeatmapPose, [nc, kpt_shape, 0, 1.0]]
