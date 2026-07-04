@@ -8,7 +8,7 @@ This variant is intended to answer one question: does an HRNet-style high-resolu
 
 ```text
 Input
-  -> HRNetYOLOBackbone
+  -> HRNet
       -> P2 stride 4
       -> P3 stride 8
       -> P4 stride 16
@@ -18,7 +18,7 @@ Input
   -> standard YOLO pose keypoints
 ```
 
-For `896 x 896` input, `HRNetYOLOBackbone` returns:
+For `896 x 896` input, `HRNet` returns:
 
 - `P2`: `B x 128 x 224 x 224`
 - `P3`: `B x 256 x 112 x 112`
@@ -30,7 +30,7 @@ v4 does not add SimCC, auxiliary heatmap supervision, GNN refinement, contour re
 ## Files
 
 - Model YAML: `ultralytics/cfg/models/26oa/yolo26-posev4.yaml`
-- Backbone: `ultralytics/nn/modules/hrnet_yolo_backbone.py`
+- Backbone: `ultralytics/nn/modules/oa26/hrnet.py`
 - Parser registration: `ultralytics/nn/tasks.py`
 - Smoke test: `tests/custom/test_yolo26_posev4_hrnet.py`
 

@@ -14,8 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 from ultralytics import YOLO
 from ultralytics.nn.modules.head import Pose26
-from ultralytics.nn.modules.hrnet_yolo_backbone import HRNetYOLOBackbone
-from ultralytics.nn.modules.oa26 import OA26HeatmapPose, OA26SimCCPose
+from ultralytics.nn.modules.oa26 import HRNet, OA26HeatmapPose, OA26SimCCPose
 from ultralytics.nn.tasks import PoseModel
 
 
@@ -33,7 +32,7 @@ def test_yolo26_posev4_hrnet_builds_from_yaml():
 
 
 def test_hrnet_backbone_outputs_expected_896_shapes():
-    backbone = HRNetYOLOBackbone().eval()
+    backbone = HRNet().eval()
     with torch.no_grad():
         outputs = backbone(torch.randn(1, 3, 896, 896))
     assert [tuple(x.shape) for x in outputs] == [

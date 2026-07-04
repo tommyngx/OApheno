@@ -1,5 +1,5 @@
 # Ultralytics AGPL-3.0 License - https://ultralytics.com/license
-"""Clean-room HRNet-style backbone adapter for YOLO pose experiments."""
+"""Clean-room HRNet-style backbone adapter for OA26 pose experiments."""
 
 from __future__ import annotations
 
@@ -85,8 +85,8 @@ class HRFusionStage(nn.Module):
         return fused
 
 
-class HRNetYOLOBackbone(nn.Module):
-    """HRNet-style W32 backbone that returns YOLO-friendly P2/P3/P4/P5 features."""
+class HRNet(nn.Module):
+    """HRNet-style W32 backbone that returns P2/P3/P4/P5 features."""
 
     _VARIANTS = {"w32": (32, 64, 128, 256)}
 
@@ -102,11 +102,11 @@ class HRNetYOLOBackbone(nn.Module):
         variant = str(variant).lower()
         if variant not in self._VARIANTS:
             raise ValueError(
-                f"Unsupported HRNetYOLOBackbone variant '{variant}'. Supported variants: {self._VARIANTS}."
+                f"Unsupported HRNet variant '{variant}'. Supported variants: {self._VARIANTS}."
             )
         if pretrained:
             raise NotImplementedError(
-                "HRNetYOLOBackbone pretrained weights are not bundled for this clean-room adapter."
+                "HRNet pretrained weights are not bundled for this clean-room adapter."
             )
 
         self.variant = variant

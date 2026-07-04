@@ -109,11 +109,14 @@ from ultralytics.utils.torch_utils import (
     smart_inference_mode,
     time_sync,
 )
-# Custom experimental ConvNeXtV2-Tiny backbone for YOLO26-posev5.
-from ultralytics.nn.modules.convnextv2_tiny_yolo_backbone import ConvNeXtV2TinyYOLOBackbone
-# Custom experimental HRNet backbone for YOLO26-posev4.
-from ultralytics.nn.modules.hrnet_yolo_backbone import HRNetYOLOBackbone
-from ultralytics.nn.modules.oa26 import OA26HeatmapPose, OA26SimCCPose
+# Custom experimental OA26 modules for YOLO26 pose variants.
+from ultralytics.nn.modules.oa26 import (
+    ConvNeXtV2N,
+    ConvNeXtV2T,
+    HRNet,
+    OA26HeatmapPose,
+    OA26SimCCPose,
+)
 from ultralytics.utils.oa26.loss import OA26HeatmapPoseLoss, OA26SimCCPoseLoss
 
 

@@ -1,5 +1,5 @@
 # Ultralytics AGPL-3.0 License - https://ultralytics.com/license
-"""ConvNeXtV2-Tiny backbone adapter for YOLO pose experiments."""
+"""ConvNeXtV2-Nano backbone adapter for OA26 pose experiments."""
 
 from __future__ import annotations
 
@@ -7,21 +7,21 @@ import torch
 import torch.nn as nn
 
 
-class ConvNeXtV2TinyYOLOBackbone(nn.Module):
-    """ConvNeXtV2-Tiny feature extractor that returns YOLO-friendly P2/P3/P4/P5 maps."""
+class ConvNeXtV2N(nn.Module):
+    """ConvNeXtV2-Nano feature extractor that returns P2/P3/P4/P5 maps."""
 
     def __init__(
         self,
-        pretrained: bool = False,
+        pretrained: bool = True,
         out_channels: tuple[int, int, int, int] | list[int] = (128, 256, 512, 512),
     ):
-        """Initialize a fixed ConvNeXtV2-Tiny backbone with 1x1 YOLO adapters."""
+        """Initialize a ConvNeXtV2-Nano backbone with 1x1 adapters."""
         super().__init__()
         try:
             import timm
         except ImportError as e:
             raise ImportError(
-                "ConvNeXtV2TinyYOLOBackbone requires timm. Please install it with pip install timm."
+                "ConvNeXtV2N requires timm. Please install it with pip install timm."
             ) from e
 
         out_channels = tuple(int(c) for c in out_channels)
@@ -29,7 +29,7 @@ class ConvNeXtV2TinyYOLOBackbone(nn.Module):
             raise ValueError("out_channels must contain four values for P2, P3, P4 and P5.")
 
         self.backbone = timm.create_model(
-            "convnextv2_tiny.fcmae",
+            "convnextv2_nano",
             pretrained=bool(pretrained),
             features_only=True,
             out_indices=(0, 1, 2, 3),

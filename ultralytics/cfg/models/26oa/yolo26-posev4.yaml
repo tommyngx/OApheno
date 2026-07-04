@@ -10,9 +10,9 @@ kpt_shape: [129, 3]
 scale: n # fixed HRNet-W32 experiment; keeps C3k2 parser behavior stable without compound scaling
 
 backbone:
-  # HRNetYOLOBackbone returns [P2, P3, P4, P5].
+  # HRNet returns [P2, P3, P4, P5].
   # P2 stride 4, P3 stride 8, P4 stride 16, P5 stride 32.
-  - [-1, 1, HRNetYOLOBackbone, [w32, False, [128, 256, 512, 512], True]] # 0
+  - [-1, 1, HRNet, [w32, False, [128, 256, 512, 512], True]] # 0
   - [0, 1, Index, [128, 0]] # 1-P2/4
   - [0, 1, Index, [256, 1]] # 2-P3/8
   - [0, 1, Index, [512, 2]] # 3-P4/16
