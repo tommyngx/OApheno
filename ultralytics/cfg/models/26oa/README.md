@@ -15,6 +15,7 @@ postprocessing should still receive normal YOLO pose keypoints.
 | v3 | `ultralytics/cfg/models/26oa/yolo26-posev3.yaml` | YOLO26-style P2-P5 | `OA26SimCCPose` | SimCC x/y | Standard pose | Test coordinate-distribution supervision |
 | v4 | `ultralytics/cfg/models/26oa/yolo26-posev4.yaml` | `HRNet` | `Pose26` | None | Standard pose | Isolate HRNet high-resolution backbone effect |
 | v5 | `ultralytics/cfg/models/26oa/yolo26-posev5.yaml` | `ConvNeXtV2N` pretrained | `Pose26` | None | Standard pose | Isolate pretrained ConvNeXtV2-Nano backbone effect |
+| v6 | `ultralytics/cfg/models/26oa/yolo26-posev6.yaml` | YOLO26-style P2-P5 + `ViTRefine` on P4 | `Pose26` | None | Standard pose | Test ViTPose-style global token refinement |
 
 ## Module Locations
 
@@ -24,6 +25,7 @@ All custom neural network modules for this experiment group live in `ultralytics
 - `hrnet.py`: `HRNet`
 - `convnextv2_n.py`: `ConvNeXtV2N` for Nano
 - `convnextv2_t.py`: `ConvNeXtV2T` for Tiny, kept for quick future swaps
+- `vit_refine.py`: `ViTRefine` for lightweight transformer refinement
 
 ## Quick Training Commands
 
@@ -42,14 +44,21 @@ yolo pose train model=ultralytics/cfg/models/26oa/yolo26-posev4.yaml data=your_k
 yolo pose train model=ultralytics/cfg/models/26oa/yolo26-posev5.yaml data=your_knee_pose.yaml imgsz=896 epochs=100
 ```
 
+Transformer-refinement variant:
+
+```bash
+yolo pose train model=ultralytics/cfg/models/26oa/yolo26-posev6.yaml data=your_knee_pose.yaml imgsz=896 epochs=100
+```
+
 Safer smoke runs:
 
 ```bash
 yolo pose train model=ultralytics/cfg/models/26oa/yolo26-posev1.yaml data=your_knee_pose.yaml imgsz=768 epochs=5 batch=2
 yolo pose train model=ultralytics/cfg/models/26oa/yolo26-posev5.yaml data=your_knee_pose.yaml imgsz=768 epochs=5 batch=2
+yolo pose train model=ultralytics/cfg/models/26oa/yolo26-posev6.yaml data=your_knee_pose.yaml imgsz=768 epochs=5 batch=2
 ```
 
-Swap the model path in the smoke command to compare all five variants under the same data, image size, batch size, and
+Swap the model path in the smoke command to compare all six variants under the same data, image size, batch size, and
 seed.
 
 ## Recommended Experiment Order
@@ -64,6 +73,7 @@ seed.
 
 - v1-v3 include a P2 stride-4 path and auxiliary branches, so they can use more VRAM than original YOLO26 pose.
 - v4 HRNet and v5 ConvNeXtV2-Nano keep the standard `Pose26` head but still use P2 stride-4 features.
+- v6 applies transformer attention on P4/16 only; do not move full attention to P2/4 at `imgsz=896`.
 - Start with `imgsz=768` and small batch size before moving to `imgsz=896`.
 - v5 requires `timm` for `convnextv2_nano` and downloads pretrained weights on first use if they are not cached.
 
@@ -81,5 +91,5 @@ Do not rely only on COCO-style pose mAP for this task. Track:
 
 ## Export Notes
 
-The public output is standard YOLO pose keypoints. Still test ONNX/export separately for v1-v5 because v1-v3 introduce
-custom auxiliary branches and v4-v5 introduce custom backbone wrappers.
+The public output is standard YOLO pose keypoints. Still test ONNX/export separately for v1-v6 because v1-v3 introduce
+custom auxiliary branches, v4-v5 introduce custom backbone wrappers, and v6 introduces a transformer refinement block.

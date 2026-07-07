@@ -116,6 +116,7 @@ from ultralytics.nn.modules.oa26 import (
     HRNet,
     OA26HeatmapPose,
     OA26SimCCPose,
+    ViTRefine,
 )
 from ultralytics.utils.oa26.loss import OA26HeatmapPoseLoss, OA26SimCCPoseLoss
 
@@ -1989,6 +1990,10 @@ def parse_model(d, ch, verbose=True):
             c2 = args[0]
             c1 = ch[f]
             args = [*args[1:]]
+        # Custom experimental ViTPose-style refinement block for YOLO26-posev6.
+        elif m is ViTRefine:
+            c2 = ch[f]
+            args = [c2, *args]
         else:
             c2 = ch[f]
 
