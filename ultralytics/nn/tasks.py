@@ -114,6 +114,7 @@ from ultralytics.nn.modules.oa26 import (
     ConvNeXtV2N,
     ConvNeXtV2T,
     HRNet,
+    HRNetLite,
     OA26HeatmapPose,
     OA26SimCCPose,
     ViTRefine,

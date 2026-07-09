@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 from ultralytics import YOLO
 from ultralytics.nn.modules.head import Pose26
-from ultralytics.nn.modules.oa26 import HRNet, OA26HeatmapPose, OA26SimCCPose
+from ultralytics.nn.modules.oa26 import HRNetLite, OA26HeatmapPose, OA26SimCCPose
 from ultralytics.nn.tasks import PoseModel
 
 
@@ -31,8 +31,8 @@ def test_yolo26_posev4_hrnet_builds_from_yaml():
     assert tuple(head.kpt_shape) == KPT_SHAPE
 
 
-def test_hrnet_backbone_outputs_expected_896_shapes():
-    backbone = HRNet().eval()
+def test_hrnet_lite_backbone_outputs_expected_896_shapes():
+    backbone = HRNetLite().eval()
     with torch.no_grad():
         outputs = backbone(torch.randn(1, 3, 896, 896))
     assert [tuple(x.shape) for x in outputs] == [
@@ -67,7 +67,7 @@ def test_optional_slow_896_forward():
 
 if __name__ == "__main__":
     test_yolo26_posev4_hrnet_builds_from_yaml()
-    test_hrnet_backbone_outputs_expected_896_shapes()
+    test_hrnet_lite_backbone_outputs_expected_896_shapes()
     test_yolo26_posev4_forward_keeps_standard_pose_output()
     test_original_yolo26_pose_still_builds()
     test_optional_slow_896_forward()

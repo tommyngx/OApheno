@@ -1,6 +1,6 @@
 # YOLO26 OA Pose v4 HRNet
 
-`yolo26-posev4.yaml` is an experimental pose model for dense medical landmark detection. It keeps the standard YOLO26 pose head and public keypoint output, but replaces the YOLO26 backbone with a clean-room HRNet-style high-resolution backbone adapter.
+`yolo26-posev4.yaml` is a lightweight experimental pose model for dense medical landmark detection. It keeps the standard YOLO26 pose head and public keypoint output, but replaces the YOLO26 backbone with a clean-room HRNet-style high-resolution backbone adapter. For canonical HRNet-Pose W32/W48 experiments, use v7/v8.
 
 This variant is intended to answer one question: does an HRNet-style high-resolution backbone improve 129-point knee X-ray landmark accuracy over the standard YOLO26 pose backbone?
 
