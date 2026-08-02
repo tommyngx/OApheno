@@ -56,14 +56,37 @@ class OA26RegionROIExtractor(nn.Module):
         output_dtype = projected.dtype
         debug_event("roi-align-forward-enter", feature_shape=tuple(projected.shape), rois=rois.shape[0])
         with torch.autocast(device_type=projected.device.type, enabled=False):
-            aligned = roi_align(
-                projected.float(),
-                rois.float(),
-                output_size=self.output_size,
-                spatial_scale=float(spatial_scale),
-                sampling_ratio=self.sampling_ratio,
-                aligned=self.aligned,
-            )
+            roi_input, roi_boxes = projected.float(), rois.float()
+            # Torchvision 0.19 routes accelerator ROIAlign through a lazy torch.compile implementation whenever
+            # deterministic algorithms are enabled (Ultralytics defaults deterministic=True). On the school image,
+            # PyTorch 2.4 then imports an incompatible user-site Triton and fails before the first batch. The native
+            # torchvision operator is already installed and is the same path used when deterministic=False, so call
+            # it directly in this one case and avoid Torchvision's hidden Inductor/Triton compilation.
+            force_native = torch.are_deterministic_algorithms_enabled() and projected.device.type in {
+                "cuda",
+                "mps",
+                "xpu",
+            }
+            if force_native:
+                debug_event("roi-align-native-deterministic-bypass", device=projected.device.type)
+                aligned = torch.ops.torchvision.roi_align(
+                    roi_input,
+                    roi_boxes,
+                    float(spatial_scale),
+                    self.output_size[0],
+                    self.output_size[1],
+                    self.sampling_ratio,
+                    self.aligned,
+                )
+            else:
+                aligned = roi_align(
+                    roi_input,
+                    roi_boxes,
+                    output_size=self.output_size,
+                    spatial_scale=float(spatial_scale),
+                    sampling_ratio=self.sampling_ratio,
+                    aligned=self.aligned,
+                )
         debug_event("roi-align-forward-complete", output_shape=tuple(aligned.shape))
         mark_backward(aligned, "roi-align-backward-enter")
         return aligned.to(output_dtype)

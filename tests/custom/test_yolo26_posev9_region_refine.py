@@ -107,6 +107,16 @@ def test_tiny_thop_feature_map_bypasses_native_roi_align():
     assert feature.grad is not None and torch.isfinite(feature.grad).all()
 
 
+def test_native_roi_align_dispatch_signature_and_backward():
+    """Keep the direct operator used to bypass Torchvision's hidden Triton compile covered on every platform."""
+    feature = torch.randn(1, 8, 8, 8, requires_grad=True)
+    rois = torch.tensor([[0.0, 0.0, 0.0, 7.0, 7.0]])
+    output = torch.ops.torchvision.roi_align(feature, rois, 1.0, 4, 4, 2, True)
+    assert output.shape == (1, 8, 4, 4)
+    output.mean().backward()
+    assert feature.grad is not None and torch.isfinite(feature.grad).all()
+
+
 def test_refinement_detaches_predicted_roi_coordinates():
     model = _make_model().train()
     head = model.model[-1].region_refine_head
@@ -229,6 +239,7 @@ if __name__ == "__main__":
     test_direct_v9_model_loss_initializes_default_args()
     test_roi_align_shape_boundary_and_empty_input()
     test_tiny_thop_feature_map_bypasses_native_roi_align()
+    test_native_roi_align_dispatch_signature_and_backward()
     test_refinement_detaches_predicted_roi_coordinates()
     test_transformer_does_not_mix_region_instances()
     test_roi_localization_probability_coordinate_and_gradient()

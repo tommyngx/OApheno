@@ -10,9 +10,9 @@ from ultralytics.models import yolo
 from ultralytics.nn.modules.oa26 import OA26HeatmapPose, OA26SimCCPose
 from ultralytics.nn.modules.oa26_region_refine import OA26RegionRefinePose
 from ultralytics.nn.tasks import PoseModel
-from ultralytics.utils import DEFAULT_CFG, RANK
+from ultralytics.utils import DEFAULT_CFG, LOGGER, RANK
 from ultralytics.utils.oa26_region_refine.training_plot import plot_v9_performance_on_epoch_end
-from ultralytics.utils.torch_utils import unwrap_model
+from ultralytics.utils.torch_utils import unset_deterministic, unwrap_model
 
 
 class PoseTrainer(yolo.detect.DetectionTrainer):
@@ -91,6 +91,18 @@ class PoseTrainer(yolo.detect.DetectionTrainer):
         """Set keypoints shape attribute of PoseModel."""
         super().set_model_attributes()
         self.model.kpt_shape = self.data["kpt_shape"]
+        head = self.model.model[-1]
+        if isinstance(head, OA26RegionRefinePose) and self.args.deterministic:
+            try:
+                # Torch 2.4/Torchvision 0.19's deterministic ROIAlign lazy compiler imports this exact Triton API.
+                from triton.compiler.compiler import triton_key  # noqa: F401
+            except (ImportError, ModuleNotFoundError):
+                LOGGER.warning(
+                    "V9: deterministic ROIAlign is unavailable with the installed Triton; "
+                    "using native ROIAlign to prevent a first-batch TorchInductor crash."
+                )
+                self.args.deterministic = False
+                unset_deterministic()
         kpt_names = self.data.get("kpt_names")
         if not kpt_names:
             names = list(map(str, range(self.model.kpt_shape[0])))
