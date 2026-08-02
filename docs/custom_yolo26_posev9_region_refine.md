@@ -34,9 +34,10 @@ bone instance then follows its own path:
 Femur, tibia, fibula, and patella rows never attend to one another. There is no patch-per-landmark extraction and no
 bounded residual output.
 
-The memory-safe configuration uses `d_model=128`, two transformer layers, four heads, shared refinement weights for
-the E2E branches, and gradient checkpointing during training. Inference postprocess gathers the four compact refined
-poses only after top-k anchor selection; it never expands them over all 66k+ anchors at `imgsz=896`.
+The memory-safe configuration uses `d_model=128`, two transformer layers, four heads, and shared refinement weights for
+the E2E branches. Both training and inference gather four compact class instances before decoding/refinement; they
+never expand refined poses over all 66k+ anchors at `imgsz=896`. Gradient checkpointing remains optional but is off by
+default for compatibility across CUDA/PyTorch versions.
 
 ## Public output compatibility
 

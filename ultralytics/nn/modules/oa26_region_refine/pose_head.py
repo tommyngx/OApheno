@@ -63,7 +63,7 @@ class OA26RegionRefinePose(OA26HeatmapPose):
             coarse_prior_sigma=float(cfg.get("coarse_prior_sigma", 0.25)),
             coarse_prior_gain=float(cfg.get("coarse_prior_gain", 0.5)),
             dropout=float(cfg.get("dropout", 0.1)),
-            gradient_checkpointing=bool(cfg.get("gradient_checkpointing", True)),
+            gradient_checkpointing=bool(cfg.get("gradient_checkpointing", False)),
         )
         if end2end:
             # Both E2E branches refine the same anatomy, so sharing avoids a redundant second transformer copy.
@@ -101,13 +101,21 @@ class OA26RegionRefinePose(OA26HeatmapPose):
 
         if bool((self.stride > 0).all()):
             anchors, stride_tensor = make_anchors(x, self.stride, 0.5)
-            decoded_boxes = self.decode_bboxes(self.dfl(boxes), anchors.t().unsqueeze(0)) * stride_tensor.t()
-            raw = raw_kpts.view(batch_size, *self.kpt_shape, -1).permute(0, 3, 1, 2)
-            decoded_xy = (raw[..., :2] + anchors[None, :, None]) * stride_tensor[None, :, None]
-            decoded_conf = raw[..., 2:3].sigmoid()
-            decoded_kpts = torch.cat((decoded_xy, decoded_conf), dim=-1)
-            instance_boxes = decoded_boxes.transpose(1, 2)[batch_grid, selected]
-            coarse_kpts = decoded_kpts[batch_grid, selected]
+            # Gather B x C selected anchors before decoding. Decoding B x A x K for all 66k+ anchors at imgsz=896
+            # created multi-GB temporary tensors at realistic batch sizes and could make a notebook kernel get killed.
+            box_index = selected[:, None].expand(-1, boxes.shape[1], -1)
+            selected_boxes = boxes.gather(2, box_index)
+            selected_anchors = anchors[selected]
+            selected_stride = stride_tensor[selected]
+            instance_boxes = self.decode_bboxes(selected_boxes, selected_anchors.transpose(1, 2))
+            instance_boxes = (instance_boxes * selected_stride.transpose(1, 2)).transpose(1, 2)
+
+            kpt_index = selected[:, None].expand(-1, self.nk, -1)
+            selected_raw = raw_kpts.gather(2, kpt_index).permute(0, 2, 1)
+            selected_raw = selected_raw.reshape(batch_size, self.nc, *self.kpt_shape)
+            decoded_xy = (selected_raw[..., :2] + selected_anchors[:, :, None]) * selected_stride[:, :, None]
+            decoded_conf = selected_raw[..., 2:3].sigmoid()
+            coarse_kpts = torch.cat((decoded_xy, decoded_conf), dim=-1)
         else:
             # PoseModel runs a stride-discovery forward before prediction heads are calibrated.
             full = boxes.new_tensor((0.0, 0.0, float(image_w), float(image_h)))

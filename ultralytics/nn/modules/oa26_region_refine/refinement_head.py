@@ -39,7 +39,7 @@ class OA26PerRegionRefinementHead(nn.Module):
         coarse_prior_sigma: float = 0.25,
         coarse_prior_gain: float = 0.5,
         dropout: float = 0.1,
-        gradient_checkpointing: bool = True,
+        gradient_checkpointing: bool = False,
     ):
         """Initialize ROI extraction, landmark queries, attention, and spatial localization."""
         super().__init__()

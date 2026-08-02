@@ -28,7 +28,7 @@ oa26_region_refine:
   d_model: 128
   num_heads: 4
   num_layers: 2
-  gradient_checkpointing: true
+  gradient_checkpointing: false
   dropout: 0.1
   heatmap_temperature: 0.1
   use_coarse_spatial_prior: false
