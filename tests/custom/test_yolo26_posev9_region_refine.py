@@ -75,6 +75,37 @@ def test_roi_align_shape_boundary_and_empty_input():
     empty = extractor(feature.detach(), boxes[:0], torch.empty(0, dtype=torch.long), spatial_scale=0.25)
     assert empty.shape == (0, 24, 12, 10)
 
+    amp_feature = torch.randn(1, 16, 16, 20, requires_grad=True)
+    with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
+        amp_output = extractor(amp_feature, boxes[:1], torch.tensor([0]), spatial_scale=0.25)
+    assert amp_output.dtype == torch.bfloat16
+    amp_output.float().mean().backward()
+    assert amp_feature.grad is not None and torch.isfinite(amp_feature.grad).all()
+
+
+def test_refinement_detaches_predicted_roi_coordinates():
+    model = _make_model().train()
+    head = model.model[-1].region_refine_head
+    boxes = torch.tensor(
+        [[2.0, 2.0, 30.0, 30.0], [3.0, 3.0, 31.0, 31.0], [4.0, 4.0, 32.0, 32.0], [5.0, 5.0, 33.0, 33.0]],
+        requires_grad=True,
+    )
+    coarse = torch.rand(NC, *KPT_SHAPE, requires_grad=True)
+    output = head(
+        torch.randn(1, 128, 4, 4, requires_grad=True),
+        boxes,
+        coarse,
+        torch.arange(NC),
+        torch.zeros(NC, dtype=torch.long),
+        torch.arange(NC).view(1, NC),
+        (torch.tensor(64.0), torch.tensor(64.0)),
+        16.0,
+    )
+    assert not output["region_boxes"].requires_grad
+    output["refined_region_kpts"].sum().backward()
+    assert boxes.grad is None
+    assert coarse.grad is not None
+
 
 def test_transformer_does_not_mix_region_instances():
     transformer = OA26RegionTransformer(d_model=24, num_heads=4, num_layers=2, dropout=0.0).eval()
@@ -172,6 +203,7 @@ def test_epoch_dashboard_contains_four_metrics():
 if __name__ == "__main__":
     test_region_schema_matches_mesko4gf2_classes()
     test_roi_align_shape_boundary_and_empty_input()
+    test_refinement_detaches_predicted_roi_coordinates()
     test_transformer_does_not_mix_region_instances()
     test_roi_localization_probability_coordinate_and_gradient()
     test_v9_build_forward_loss_and_backward()

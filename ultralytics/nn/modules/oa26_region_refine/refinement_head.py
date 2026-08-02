@@ -108,7 +108,10 @@ class OA26PerRegionRefinementHead(nn.Module):
     ) -> dict[str, torch.Tensor]:
         """Return one independent refined 51-slot pose for every selected class instance."""
         valid_mask = class_keypoint_mask(class_ids, self.num_keypoints)
-        region_boxes = self._expand_boxes(instance_boxes, image_size)
+        # torchvision ROIAlign differentiates feature values, not ROI coordinates. Keep predicted boxes outside the
+        # refiner autograd graph to avoid unsupported/native ROI-coordinate backward paths on older CUDA/torchvision
+        # builds and to prevent refinement losses from perturbing the detector through crop geometry.
+        region_boxes = self._expand_boxes(instance_boxes.detach(), image_size)
         coarse_xy = coarse_keypoints[..., :2].masked_fill(~valid_mask.unsqueeze(-1), 0)
         coarse_conf = coarse_keypoints[..., 2].masked_fill(~valid_mask, 0)
         coarse_xy_roi = self._image_to_roi(coarse_xy, region_boxes)

@@ -39,12 +39,17 @@ class OA26RegionROIExtractor(nn.Module):
         projected = self.projection(feature)
         if boxes.numel() == 0:
             return projected.new_empty((0, projected.shape[1], *self.output_size))
-        rois = torch.cat((batch_indices.to(boxes.dtype).unsqueeze(1), boxes), dim=1)
-        return roi_align(
-            projected,
-            rois,
-            output_size=self.output_size,
-            spatial_scale=float(spatial_scale),
-            sampling_ratio=self.sampling_ratio,
-            aligned=self.aligned,
-        )
+        # ROI coordinates are metadata, not differentiable model values. Torchvision 0.19/CUDA builds are also more
+        # robust when ROIAlign forward/backward stays in FP32 instead of entering its AMP half-precision native path.
+        rois = torch.cat((batch_indices.to(boxes.dtype).unsqueeze(1), boxes.detach()), dim=1)
+        output_dtype = projected.dtype
+        with torch.autocast(device_type=projected.device.type, enabled=False):
+            aligned = roi_align(
+                projected.float(),
+                rois.float(),
+                output_size=self.output_size,
+                spatial_scale=float(spatial_scale),
+                sampling_ratio=self.sampling_ratio,
+                aligned=self.aligned,
+            )
+        return aligned.to(output_dtype)

@@ -39,6 +39,10 @@ the E2E branches. Both training and inference gather four compact class instance
 never expand refined poses over all 66k+ anchors at `imgsz=896`. Gradient checkpointing remains optional but is off by
 default for compatibility across CUDA/PyTorch versions.
 
+Predicted ROI coordinates are detached before crop construction. ROIAlign itself runs in FP32 outside AMP and returns
+to the feature dtype afterward, keeping gradient only for P4/refiner features and avoiding unsupported ROI-coordinate
+or half-precision native backward paths in older Torchvision/CUDA environments.
+
 ## Public output compatibility
 
 Raw branch dictionaries expose `coarse_region_kpts`, `refined_region_kpts`, `region_boxes`, `region_heatmaps`, class
