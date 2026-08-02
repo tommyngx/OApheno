@@ -12,7 +12,6 @@ import torch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from ultralytics.cfg import get_cfg
 from ultralytics.nn.tasks import PoseModel
 from ultralytics.utils.oa26_region_refine import REGION_KEYPOINT_COUNTS
 
@@ -54,6 +53,7 @@ def main() -> None:
     parser.add_argument("--batch", type=int, default=1)
     parser.add_argument("--steps", type=int, default=1)
     parser.add_argument("--no-amp", action="store_true")
+    parser.add_argument("--check-flops", action="store_true", help="Run optional THOP/model_info probe on CUDA")
     args = parser.parse_args()
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is not available in this environment")
@@ -70,8 +70,11 @@ def main() -> None:
         data_kpt_shape=(51, 3),
         verbose=False,
     ).to(device).train()
-    model.args = get_cfg(overrides={"task": "pose", "mode": "train", "model": "v9", "data": "mesko"})
     report("model-built")
+    if args.check_flops:
+        print("[thop-start] calling model.info() on CUDA", flush=True)
+        model.info(imgsz=args.imgsz)
+        print("[thop-complete] model.info() returned", flush=True)
 
     target = synthetic_batch(args.batch, device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)

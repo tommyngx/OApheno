@@ -6,6 +6,7 @@ from __future__ import annotations
 import torch
 import torch.nn.functional as F
 
+from ultralytics.cfg import get_cfg
 from ultralytics.utils.oa26.loss import OA26HeatmapPoseLoss
 from ultralytics.utils.oa26_region_refine.region_schema import NUM_REGIONS, class_keypoint_mask
 
@@ -15,6 +16,11 @@ class OA26RegionRefinePoseLoss(OA26HeatmapPoseLoss):
 
     def __init__(self, model: torch.nn.Module, tal_topk: int = 10, tal_topk2: int | None = None):
         """Read v9-only loss settings without changing the old OA26 loss implementation."""
+        # PoseModel constructed directly (outside the YOLO/Trainer wrapper) has no `.args`, while every base YOLO loss
+        # expects its hyperparameters there. Supply normal pose defaults so the public v9 criterion also works in
+        # notebooks and standalone diagnostics instead of failing during criterion construction.
+        if not hasattr(model, "args"):
+            model.args = get_cfg(overrides={"task": "pose", "mode": "train"})
         super().__init__(model, tal_topk, tal_topk2)
         cfg = getattr(model, "yaml", {}).get("oa26_region_refine", {})
         self.refined_heatmap_gain = float(cfg.get("refined_heatmap_gain", 1.0))

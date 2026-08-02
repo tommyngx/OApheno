@@ -64,6 +64,17 @@ def test_region_schema_matches_mesko4gf2_classes():
     assert tuple(mask.sum(1).tolist()) == REGION_KEYPOINT_COUNTS == (45, 51, 24, 9)
 
 
+def test_direct_v9_model_loss_initializes_default_args():
+    model = PoseModel(str(V9_CFG), ch=3, nc=NC, data_kpt_shape=KPT_SHAPE, verbose=False).train()
+    assert not hasattr(model, "args")
+    predictions = model(torch.randn(1, 3, 64, 64))
+    loss, detached = model.loss(_synthetic_batch(), predictions)
+    assert hasattr(model.criterion, "one2many") and hasattr(model.criterion, "one2one")
+    assert model.criterion.one2many.hyp.task == "pose" and hasattr(model, "args")
+    assert loss.shape == detached.shape == (14,) and torch.isfinite(loss).all()
+    loss.sum().backward()
+
+
 def test_roi_align_shape_boundary_and_empty_input():
     extractor = OA26RegionROIExtractor(16, d_model=24, output_size=(12, 10)).eval()
     feature = torch.randn(2, 16, 16, 20, requires_grad=True)
@@ -202,6 +213,7 @@ def test_epoch_dashboard_contains_four_metrics():
 
 if __name__ == "__main__":
     test_region_schema_matches_mesko4gf2_classes()
+    test_direct_v9_model_loss_initializes_default_args()
     test_roi_align_shape_boundary_and_empty_input()
     test_refinement_detaches_predicted_roi_coordinates()
     test_transformer_does_not_mix_region_instances()
