@@ -7,6 +7,7 @@ import torch
 import torch.nn.functional as F
 
 from ultralytics.cfg import get_cfg
+from ultralytics.utils.oa26_region_refine.debug import debug_event, mark_backward
 from ultralytics.utils.oa26.loss import OA26HeatmapPoseLoss
 from ultralytics.utils.oa26_region_refine.region_schema import NUM_REGIONS, class_keypoint_mask
 
@@ -22,6 +23,7 @@ class OA26RegionRefinePoseLoss(OA26HeatmapPoseLoss):
         if not hasattr(model, "args"):
             model.args = get_cfg(overrides={"task": "pose", "mode": "train"})
         super().__init__(model, tal_topk, tal_topk2)
+        self.debug_branch = f"topk-{tal_topk}-topk2-{tal_topk2}"
         cfg = getattr(model, "yaml", {}).get("oa26_region_refine", {})
         self.refined_heatmap_gain = float(cfg.get("refined_heatmap_gain", 1.0))
         self.refined_heatmap_sigma = float(cfg.get("refined_heatmap_sigma", 1.5))
@@ -31,10 +33,15 @@ class OA26RegionRefinePoseLoss(OA26HeatmapPoseLoss):
 
     def loss(self, preds: dict[str, torch.Tensor], batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         """Return the original ten v1/RLE losses followed by four region-refinement losses."""
+        debug_event("v9-loss-enter", branch=self.debug_branch, batch=preds["boxes"].shape[0])
         base_loss, base_detach = super().loss(preds, batch)
+        debug_event("v9-loss-base-complete", branch=self.debug_branch)
         region_loss = self.region_refinement_loss(preds, batch)
         batch_size = preds["boxes"].shape[0]
-        return torch.cat((base_loss, region_loss * batch_size)), torch.cat((base_detach, region_loss.detach()))
+        total = torch.cat((base_loss, region_loss * batch_size))
+        mark_backward(total, "v9-loss-backward-enter", branch=self.debug_branch)
+        debug_event("v9-loss-complete", branch=self.debug_branch, items=total.shape[0])
+        return total, torch.cat((base_detach, region_loss.detach()))
 
     def region_refinement_loss(
         self, preds: dict[str, torch.Tensor], batch: dict[str, torch.Tensor]

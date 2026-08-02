@@ -11,6 +11,7 @@ from ultralytics.utils.oa26_region_refine.region_schema import (
     NUM_REGIONS,
     validate_region_schema,
 )
+from ultralytics.utils.oa26_region_refine.debug import debug_event
 from ultralytics.utils.tal import make_anchors
 
 from .refinement_head import OA26PerRegionRefinementHead
@@ -194,18 +195,23 @@ class OA26RegionRefinePose(OA26HeatmapPose):
         self, x: list[torch.Tensor]
     ) -> dict[str, torch.Tensor] | torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Run v9 without expanding refined poses across every class-anchor combination."""
+        debug_event("v9-head-forward-enter", training=self.training, batch=x[0].shape[0], p2=tuple(x[0].shape))
         preds = self.forward_head(x, **self.one2many)
+        debug_event("v9-head-one2many-complete")
         if self.end2end:
             x_detach = [feature.detach() for feature in x]
             one2one = self.forward_head(x_detach, **self.one2one)
+            debug_event("v9-head-one2one-complete")
             preds = {"one2many": preds, "one2one": one2one}
         if self.training:
+            debug_event("v9-head-forward-complete", output="train")
             return preds
 
         raw = preds["one2one"] if self.end2end else preds
         decoded = super()._inference(raw)
         if self.end2end:
             decoded = self._postprocess_refined(decoded.permute(0, 2, 1), raw)
+        debug_event("v9-head-forward-complete", output="eval", decoded_shape=tuple(decoded.shape))
         return decoded if self.export else (decoded, preds)
 
     def fuse(self) -> None:

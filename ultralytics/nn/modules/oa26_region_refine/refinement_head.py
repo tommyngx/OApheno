@@ -12,6 +12,7 @@ from ultralytics.utils.oa26_region_refine.region_schema import (
     class_keypoint_mask,
     validate_region_schema,
 )
+from ultralytics.utils.oa26_region_refine.debug import debug_event, mark_backward
 
 from .landmark_query_encoder import OA26RegionQueryEncoder
 from .localization_head import OA26RegionLocalizationHead
@@ -107,6 +108,7 @@ class OA26PerRegionRefinementHead(nn.Module):
         p4_stride: float,
     ) -> dict[str, torch.Tensor]:
         """Return one independent refined 51-slot pose for every selected class instance."""
+        debug_event("refiner-forward-enter", p4_shape=tuple(p4_feature.shape), instances=instance_boxes.shape[0])
         valid_mask = class_keypoint_mask(class_ids, self.num_keypoints)
         # torchvision ROIAlign differentiates feature values, not ROI coordinates. Keep predicted boxes outside the
         # refiner autograd graph to avoid unsupported/native ROI-coordinate backward paths on older CUDA/torchvision
@@ -119,13 +121,17 @@ class OA26PerRegionRefinementHead(nn.Module):
         roi_features = self.roi_extractor(
             p4_feature, region_boxes, batch_indices, 1.0 / max(float(p4_stride), 1.0)
         )
+        debug_event("refiner-after-roi", roi_shape=tuple(roi_features.shape))
         height, width = roi_features.shape[-2:]
         image_tokens = roi_features.flatten(2).transpose(1, 2)
         queries = self.query_encoder(coarse_xy_roi, coarse_conf, class_ids, valid_mask)
         landmark_tokens = self.transformer(queries, image_tokens, valid_mask)
+        debug_event("refiner-after-transformer", token_shape=tuple(landmark_tokens.shape))
         logits, probability, refined_xy_roi = self.localization_head(
             landmark_tokens, image_tokens, (height, width), coarse_xy_roi, valid_mask
         )
+        mark_backward(probability, "refiner-heatmap-backward")
+        debug_event("refiner-forward-complete", heatmap_shape=tuple(probability.shape))
         refined_xy = self._roi_to_image(refined_xy_roi, region_boxes)
         refined_xy = torch.where(valid_mask.unsqueeze(-1), refined_xy, coarse_keypoints[..., :2])
         refined_kpts = torch.cat((refined_xy, coarse_keypoints[..., 2:3]), dim=-1)
