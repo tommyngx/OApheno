@@ -111,7 +111,7 @@ def test_v9_build_forward_loss_and_backward():
     assert branch["coarse_region_kpts"].shape == (NC, *KPT_SHAPE)
     assert branch["refined_region_kpts"].shape == (NC, *KPT_SHAPE)
     assert branch["region_boxes"].shape == (NC, 4)
-    assert branch["region_heatmaps"].shape == (NC, KPT_SHAPE[0], 24, 24)
+    assert branch["region_heatmaps"].shape == (NC, KPT_SHAPE[0], 20, 20)
     assert tuple(branch["region_valid_mask"].sum(1).tolist()) == REGION_KEYPOINT_COUNTS
     valid_probability = branch["region_heatmaps"].sum(dim=(-2, -1))[branch["region_valid_mask"]]
     assert torch.allclose(valid_probability, torch.ones_like(valid_probability), atol=1e-5)
@@ -143,10 +143,14 @@ def test_v9_postprocess_selects_pose_for_returned_class():
     scores = torch.full((1, anchors, NC), -10.0)
     scores[0, torch.arange(NC), torch.arange(NC)] = torch.arange(NC, dtype=torch.float32) + 1
     coarse = torch.zeros(1, anchors, head.nk)
-    class_kpts = torch.stack(
-        [torch.full((anchors, head.nk), float(class_id + 1)) for class_id in range(NC)], dim=1
-    ).unsqueeze(0)
-    output = head.postprocess(torch.cat((boxes, scores, coarse, class_kpts.flatten(2)), dim=-1))
+    refined = torch.stack(
+        [torch.full(KPT_SHAPE, float(class_id + 1)) for class_id in range(NC)]
+    )
+    raw = {
+        "refined_region_kpts": refined,
+        "region_selected_anchor_indices": torch.arange(NC).view(1, NC),
+    }
+    output = head._postprocess_refined(torch.cat((boxes, scores, coarse), dim=-1), raw)
     assert output.shape == (1, anchors, 6 + head.nk)
     for detection in output[0]:
         class_id = int(detection[5].item())

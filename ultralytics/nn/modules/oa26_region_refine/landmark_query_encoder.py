@@ -16,7 +16,7 @@ class OA26RegionQueryEncoder(nn.Module):
         self,
         max_landmarks: int,
         num_regions: int,
-        d_model: int = 192,
+        d_model: int = 128,
         coord_fourier_bands: int = 6,
     ):
         """Initialize metadata projections and learnable identity embeddings."""

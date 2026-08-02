@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-import copy
-
 import torch
 
 from ultralytics.nn.modules.oa26.pose_heads import OA26HeatmapPose
@@ -53,10 +51,10 @@ class OA26RegionRefinePose(OA26HeatmapPose):
             in_channels=ch[2],
             num_classes=nc,
             kpt_shape=kpt_shape,
-            d_model=int(cfg.get("d_model", 192)),
-            num_heads=int(cfg.get("num_heads", 6)),
-            num_layers=int(cfg.get("num_layers", 3)),
-            roi_output_size=tuple(cfg.get("roi_output_size", (24, 24))),
+            d_model=int(cfg.get("d_model", 128)),
+            num_heads=int(cfg.get("num_heads", 4)),
+            num_layers=int(cfg.get("num_layers", 2)),
+            roi_output_size=tuple(cfg.get("roi_output_size", (20, 20))),
             roi_sampling_ratio=int(cfg.get("roi_sampling_ratio", 2)),
             roi_padding=float(cfg.get("roi_padding", 0.25)),
             min_roi_size_px=float(cfg.get("min_roi_size_px", 48.0)),
@@ -65,15 +63,18 @@ class OA26RegionRefinePose(OA26HeatmapPose):
             coarse_prior_sigma=float(cfg.get("coarse_prior_sigma", 0.25)),
             coarse_prior_gain=float(cfg.get("coarse_prior_gain", 0.5)),
             dropout=float(cfg.get("dropout", 0.1)),
+            gradient_checkpointing=bool(cfg.get("gradient_checkpointing", True)),
         )
         if end2end:
-            self.one2one_region_refine_head = copy.deepcopy(self.region_refine_head)
+            # Both E2E branches refine the same anatomy, so sharing avoids a redundant second transformer copy.
+            self.one2one_region_refine_head = self.region_refine_head
 
     @property
     def one2many(self):
         """Return v1 one-to-many modules plus the separate v9 refiner."""
         heads = super().one2many
-        heads["region_refine_head"] = self.region_refine_head
+        # Evaluation publishes the one-to-one branch, so avoid refining an unused duplicate prediction set.
+        heads["region_refine_head"] = self.region_refine_head if self.training else None
         return heads
 
     @property
@@ -163,37 +164,41 @@ class OA26RegionRefinePose(OA26HeatmapPose):
         )
         return preds
 
-    def _inference(self, x: dict[str, torch.Tensor]) -> torch.Tensor:
-        """Append internal class-specific poses while retaining the normal Pose26 channel prefix."""
-        preds = super()._inference(x)
-        if "refined_region_kpts" not in x:
-            return preds
-        base_channels = 4 + self.nc
-        coarse = preds[:, base_channels:]
-        batch_size, _, num_anchors = coarse.shape
-        class_kpts = coarse[:, None].expand(-1, self.nc, -1, -1).clone()
-        refined = x["refined_region_kpts"].reshape(batch_size, self.nc, self.nk)
-        selected = x["region_selected_anchor_indices"]
-        scatter_index = selected[:, :, None, None].expand(-1, -1, self.nk, 1)
-        class_kpts.scatter_(3, scatter_index, refined.unsqueeze(-1))
-        return torch.cat((preds, class_kpts.reshape(batch_size, self.nc * self.nk, num_anchors)), dim=1)
-
-    def postprocess(self, preds: torch.Tensor) -> torch.Tensor:
-        """Return the exact v1 public layout, selecting refinement by detection class."""
-        standard = 4 + self.nc + self.nk
-        if preds.shape[-1] == standard:
-            return super().postprocess(preds)
-        boxes, scores, _, class_kpts = preds.split([4, self.nc, self.nk, self.nc * self.nk], dim=-1)
+    def _postprocess_refined(self, preds: torch.Tensor, raw: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Postprocess standard anchors first, then inject only the matching compact class refinement."""
+        boxes, scores, coarse_kpts = preds.split([4, self.nc, self.nk], dim=-1)
         scores, classes, indices = self.get_topk_index(scores, self.max_det)
         boxes = boxes.gather(1, indices.expand(-1, -1, 4))
+        coarse_kpts = coarse_kpts.gather(1, indices.expand(-1, -1, self.nk))
         batch_size, detections = indices.shape[:2]
-        class_kpts = class_kpts.view(batch_size, -1, self.nc, self.nk)
-        class_kpts = class_kpts.gather(
-            1, indices[:, :, None, :].expand(-1, -1, self.nc, self.nk)
-        )
-        class_index = classes.long()[:, :, None].expand(-1, -1, 1, self.nk)
-        kpts = class_kpts.gather(2, class_index).reshape(batch_size, detections, self.nk)
+        if "refined_region_kpts" not in raw:
+            return torch.cat((boxes, scores, classes, coarse_kpts), dim=-1)
+
+        class_index = classes.long().squeeze(-1)
+        refined = raw["refined_region_kpts"].reshape(batch_size, self.nc, self.nk)
+        refined = refined.gather(1, class_index[:, :, None].expand(-1, -1, self.nk))
+        selected = raw["region_selected_anchor_indices"].gather(1, class_index)
+        use_refined = indices.squeeze(-1).eq(selected).unsqueeze(-1)
+        kpts = torch.where(use_refined, refined, coarse_kpts)
         return torch.cat((boxes, scores, classes, kpts), dim=-1)
+
+    def forward(
+        self, x: list[torch.Tensor]
+    ) -> dict[str, torch.Tensor] | torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """Run v9 without expanding refined poses across every class-anchor combination."""
+        preds = self.forward_head(x, **self.one2many)
+        if self.end2end:
+            x_detach = [feature.detach() for feature in x]
+            one2one = self.forward_head(x_detach, **self.one2one)
+            preds = {"one2many": preds, "one2one": one2one}
+        if self.training:
+            return preds
+
+        raw = preds["one2one"] if self.end2end else preds
+        decoded = super()._inference(raw)
+        if self.end2end:
+            decoded = self._postprocess_refined(decoded.permute(0, 2, 1), raw)
+        return decoded if self.export else (decoded, preds)
 
     def fuse(self) -> None:
         """Discard only training-time one-to-many v9 modules during inference fusion."""

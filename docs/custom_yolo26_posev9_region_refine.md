@@ -24,7 +24,7 @@ For each image, v9 selects the highest-confidence anchor independently for each 
 bone instance then follows its own path:
 
 1. Its standard Pose26 box and coarse local keypoints are decoded.
-2. ROIAlign extracts a padded `24 × 24` P4 feature map.
+2. ROIAlign extracts a padded `20 × 20` P4 feature map.
 3. Coordinate, confidence, local point identity, and bone-class identity form landmark queries.
 4. Cross-attention lets each query search the complete ROI.
 5. Self-attention exchanges shape information only inside that instance row.
@@ -33,6 +33,10 @@ bone instance then follows its own path:
 
 Femur, tibia, fibula, and patella rows never attend to one another. There is no patch-per-landmark extraction and no
 bounded residual output.
+
+The memory-safe configuration uses `d_model=128`, two transformer layers, four heads, shared refinement weights for
+the E2E branches, and gradient checkpointing during training. Inference postprocess gathers the four compact refined
+poses only after top-k anchor selection; it never expands them over all 66k+ anchors at `imgsz=896`.
 
 ## Public output compatibility
 
@@ -78,3 +82,7 @@ under `Reference/` directly for training.
 
 A v1 checkpoint trained with the same `nc=4`, `kpt_shape=[51,3]` dataset override loads with `strict=False`; only the
 new `region_refine_head` weights are missing.
+
+On Apple MPS, set `batch` explicitly (start with `batch=1` or `batch=2` at `imgsz=896`). Ultralytics AutoBatch does
+not profile MPS memory and falls back to its default batch size, which can make the process get killed without a Python
+OOM traceback.

@@ -27,10 +27,10 @@ class OA26PerRegionRefinementHead(nn.Module):
         in_channels: int,
         num_classes: int = NUM_REGIONS,
         kpt_shape: tuple[int, int] = (MAX_REGION_KEYPOINTS, 3),
-        d_model: int = 192,
-        num_heads: int = 6,
-        num_layers: int = 3,
-        roi_output_size: tuple[int, int] = (24, 24),
+        d_model: int = 128,
+        num_heads: int = 4,
+        num_layers: int = 2,
+        roi_output_size: tuple[int, int] = (20, 20),
         roi_sampling_ratio: int = 2,
         roi_padding: float = 0.25,
         min_roi_size_px: float = 48.0,
@@ -39,6 +39,7 @@ class OA26PerRegionRefinementHead(nn.Module):
         coarse_prior_sigma: float = 0.25,
         coarse_prior_gain: float = 0.5,
         dropout: float = 0.1,
+        gradient_checkpointing: bool = True,
     ):
         """Initialize ROI extraction, landmark queries, attention, and spatial localization."""
         super().__init__()
@@ -52,7 +53,9 @@ class OA26PerRegionRefinementHead(nn.Module):
         self.query_encoder = OA26RegionQueryEncoder(
             MAX_REGION_KEYPOINTS, NUM_REGIONS, d_model, coord_fourier_bands=6
         )
-        self.transformer = OA26RegionTransformer(d_model, num_heads, num_layers, 4.0, dropout)
+        self.transformer = OA26RegionTransformer(
+            d_model, num_heads, num_layers, 4.0, dropout, gradient_checkpointing
+        )
         self.localization_head = OA26RegionLocalizationHead(
             d_model,
             heatmap_temperature,

@@ -16,8 +16,8 @@ class OA26RegionROIExtractor(nn.Module):
     def __init__(
         self,
         in_channels: int,
-        d_model: int = 192,
-        output_size: tuple[int, int] = (24, 24),
+        d_model: int = 128,
+        output_size: tuple[int, int] = (20, 20),
         sampling_ratio: int = 2,
         aligned: bool = True,
     ):

@@ -21,13 +21,14 @@ oa26_region_refine:
   enabled: true
   num_regions: 4
   feature_level: P4
-  roi_output_size: [24, 24]
+  roi_output_size: [20, 20]
   roi_sampling_ratio: 2
   roi_padding: 0.25
   min_roi_size_px: 48
-  d_model: 192
-  num_heads: 6
-  num_layers: 3
+  d_model: 128
+  num_heads: 4
+  num_layers: 2
+  gradient_checkpointing: true
   dropout: 0.1
   heatmap_temperature: 0.1
   use_coarse_spatial_prior: false

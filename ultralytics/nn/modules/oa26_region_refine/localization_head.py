@@ -14,7 +14,7 @@ class OA26RegionLocalizationHead(nn.Module):
 
     def __init__(
         self,
-        d_model: int = 192,
+        d_model: int = 128,
         temperature: float = 0.1,
         use_coarse_prior: bool = False,
         coarse_prior_sigma: float = 0.25,

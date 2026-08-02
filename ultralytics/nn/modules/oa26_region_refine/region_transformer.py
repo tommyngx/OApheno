@@ -5,12 +5,13 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
+from torch.utils.checkpoint import checkpoint
 
 
 class OA26RegionTransformerLayer(nn.Module):
     """Cross-attend landmarks to one ROI, then self-attend only within that region instance."""
 
-    def __init__(self, d_model: int = 192, num_heads: int = 6, mlp_ratio: float = 4.0, dropout: float = 0.1):
+    def __init__(self, d_model: int = 128, num_heads: int = 4, mlp_ratio: float = 4.0, dropout: float = 0.1):
         """Initialize pre-normalized attention and feed-forward sublayers."""
         super().__init__()
         self.cross_norm = nn.LayerNorm(d_model)
@@ -46,11 +47,12 @@ class OA26RegionTransformer(nn.Module):
 
     def __init__(
         self,
-        d_model: int = 192,
-        num_heads: int = 6,
-        num_layers: int = 3,
+        d_model: int = 128,
+        num_heads: int = 4,
+        num_layers: int = 2,
         mlp_ratio: float = 4.0,
         dropout: float = 0.1,
+        gradient_checkpointing: bool = False,
     ):
         """Initialize the requested number of independent region layers."""
         super().__init__()
@@ -58,11 +60,15 @@ class OA26RegionTransformer(nn.Module):
             OA26RegionTransformerLayer(d_model, num_heads, mlp_ratio, dropout) for _ in range(num_layers)
         )
         self.norm = nn.LayerNorm(d_model)
+        self.gradient_checkpointing = bool(gradient_checkpointing)
 
     def forward(
         self, queries: torch.Tensor, image_tokens: torch.Tensor, valid_mask: torch.Tensor
     ) -> torch.Tensor:
         """Return refined landmark tokens for each independent region instance."""
         for layer in self.layers:
-            queries = layer(queries, image_tokens, valid_mask)
+            if self.gradient_checkpointing and self.training and torch.is_grad_enabled():
+                queries = checkpoint(layer, queries, image_tokens, valid_mask, use_reentrant=False)
+            else:
+                queries = layer(queries, image_tokens, valid_mask)
         return self.norm(queries).masked_fill(~valid_mask.unsqueeze(-1), 0)

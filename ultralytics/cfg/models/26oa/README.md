@@ -89,7 +89,7 @@ seed.
 - v4 is the lightweight HRNet-style baseline. v7 and v8 implement canonical HRNet-Pose W32 and W48 respectively; all three keep the standard `Pose26` head and a P2 stride-4 feature path.
 - v8 has substantially higher VRAM and latency cost than v7. Benchmark both under an identical training protocol before selecting a production model.
 - v6 applies transformer attention on P4/16 only; do not move full attention to P2/4 at `imgsz=896`.
-- v9 extracts one `24 x 24` P4 ROI per detected class instance. Queries cross-attend to the complete ROI and
+- v9 extracts one `20 x 20` P4 ROI per detected class instance. Queries cross-attend to the complete ROI and
   self-attend only within their own bone; it has no cross-class attention and no patch-per-landmark sampling.
 - MESKO4GF2 uses femur/tibia/fibula/patella as classes 0/1/2/3 with 45/51/24/9 valid points padded to 51 slots.
 - V9 writes `pose_detection_performance.png` in its run folder after every epoch (2 detection + 2 pose panels, top 3).
