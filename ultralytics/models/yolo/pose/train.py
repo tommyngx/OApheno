@@ -8,8 +8,10 @@ from typing import Any
 
 from ultralytics.models import yolo
 from ultralytics.nn.modules.oa26 import OA26HeatmapPose, OA26SimCCPose
+from ultralytics.nn.modules.oa26_region_refine import OA26RegionRefinePose
 from ultralytics.nn.tasks import PoseModel
 from ultralytics.utils import DEFAULT_CFG, RANK
+from ultralytics.utils.oa26_region_refine.training_plot import plot_v9_performance_on_epoch_end
 from ultralytics.utils.torch_utils import unwrap_model
 
 
@@ -55,6 +57,7 @@ class PoseTrainer(yolo.detect.DetectionTrainer):
             overrides = {}
         overrides["task"] = "pose"
         super().__init__(cfg, overrides, _callbacks)
+        self.add_callback("on_fit_epoch_end", plot_v9_performance_on_epoch_end)
 
     def get_model(
         self,
@@ -105,6 +108,13 @@ class PoseTrainer(yolo.detect.DetectionTrainer):
             self.loss_names += ("rle_loss",)
         if isinstance(head, OA26HeatmapPose):
             self.loss_names += ("hm_loss", "hm_coord_loss", "hm_neighbour_loss", "hm_curve_loss")
+            if isinstance(head, OA26RegionRefinePose):
+                self.loss_names += (
+                    "region_hm_loss",
+                    "region_coord_loss",
+                    "region_neighbour_loss",
+                    "region_curve_loss",
+                )
         elif isinstance(head, OA26SimCCPose):
             self.loss_names += ("simcc_loss",)
         return yolo.pose.PoseValidator(

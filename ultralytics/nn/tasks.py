@@ -119,7 +119,9 @@ from ultralytics.nn.modules.oa26 import (
     OA26SimCCPose,
     ViTRefine,
 )
+from ultralytics.nn.modules.oa26_region_refine import OA26RegionRefinePose
 from ultralytics.utils.oa26.loss import OA26HeatmapPoseLoss, OA26SimCCPoseLoss
+from ultralytics.utils.oa26_region_refine import OA26RegionRefinePoseLoss
 
 
 class BaseModel(torch.nn.Module):
@@ -716,7 +718,9 @@ class PoseModel(DetectionModel):
     def init_criterion(self):
         """Initialize the loss criterion for the PoseModel."""
         head = self.model[-1]
-        if isinstance(head, OA26HeatmapPose):
+        if isinstance(head, OA26RegionRefinePose):
+            loss_fn = OA26RegionRefinePoseLoss
+        elif isinstance(head, OA26HeatmapPose):
             loss_fn = OA26HeatmapPoseLoss
         elif isinstance(head, OA26SimCCPose):
             loss_fn = OA26SimCCPoseLoss
@@ -1950,11 +1954,14 @@ def parse_model(d, ch, verbose=True):
                 Pose,
                 Pose26,
                 OA26HeatmapPose,
+                OA26RegionRefinePose,
                 OA26SimCCPose,
                 OBB,
                 OBB26,
             }
         ):
+            if m is OA26RegionRefinePose:
+                args.append(d.get("oa26_region_refine", {}))
             args.extend([reg_max, end2end, [ch[x] for x in f]])
             if m is Segment or m is YOLOESegment or m is Segment26 or m is YOLOESegment26:
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
@@ -1968,6 +1975,7 @@ def parse_model(d, ch, verbose=True):
                 Pose,
                 Pose26,
                 OA26HeatmapPose,
+                OA26RegionRefinePose,
                 OA26SimCCPose,
                 OBB,
                 OBB26,
