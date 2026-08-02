@@ -52,6 +52,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--imgsz", type=int, default=896)
     parser.add_argument("--batch", type=int, default=1)
+    parser.add_argument("--steps", type=int, default=1)
     parser.add_argument("--no-amp", action="store_true")
     args = parser.parse_args()
     if not torch.cuda.is_available():
@@ -72,18 +73,25 @@ def main() -> None:
     model.args = get_cfg(overrides={"task": "pose", "mode": "train", "model": "v9", "data": "mesko"})
     report("model-built")
 
-    image = torch.randn(args.batch, 3, args.imgsz, args.imgsz, device=device)
     target = synthetic_batch(args.batch, device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+    scaler = torch.amp.GradScaler("cuda", enabled=not args.no_amp)
     torch.cuda.reset_peak_memory_stats()
-    with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=not args.no_amp):
-        predictions = model(image)
-    report("forward")
-    with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=not args.no_amp):
-        loss, detached = model.loss(target, predictions)
-    print(f"[loss] shape={tuple(loss.shape)}, finite={bool(torch.isfinite(loss).all())}", flush=True)
-    report("loss-built")
-    loss.sum().backward()
-    report("backward")
+    detached = None
+    for step in range(1, args.steps + 1):
+        optimizer.zero_grad(set_to_none=True)
+        image = torch.randn(args.batch, 3, args.imgsz, args.imgsz, device=device)
+        with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=not args.no_amp):
+            predictions = model(image)
+        report(f"step-{step}-forward")
+        with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=not args.no_amp):
+            loss, detached = model.loss(target, predictions)
+        print(f"[step-{step}-loss] shape={tuple(loss.shape)}, finite={bool(torch.isfinite(loss).all())}", flush=True)
+        scaler.scale(loss.sum()).backward()
+        scaler.step(optimizer)
+        scaler.update()
+        report(f"step-{step}-complete")
+        del image, predictions, loss
     print(f"PASS detached_loss_shape={tuple(detached.shape)}", flush=True)
 
 
