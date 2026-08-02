@@ -6,6 +6,7 @@ from __future__ import annotations
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import torch
 
@@ -92,6 +93,18 @@ def test_roi_align_shape_boundary_and_empty_input():
     assert amp_output.dtype == torch.bfloat16
     amp_output.float().mean().backward()
     assert amp_feature.grad is not None and torch.isfinite(amp_feature.grad).all()
+
+
+def test_tiny_thop_feature_map_bypasses_native_roi_align():
+    extractor = OA26RegionROIExtractor(16, d_model=24, output_size=(20, 20)).eval()
+    feature = torch.randn(1, 16, 2, 2, requires_grad=True)
+    boxes = torch.tensor([[0.0, 0.0, 8.0, 8.0]]).repeat(NC, 1)
+    with patch("ultralytics.nn.modules.oa26_region_refine.roi_feature_extractor.roi_align") as native_roi:
+        output = extractor(feature, boxes, torch.zeros(NC, dtype=torch.long), spatial_scale=0.25)
+    native_roi.assert_not_called()
+    assert output.shape == (NC, 24, 20, 20)
+    output.mean().backward()
+    assert feature.grad is not None and torch.isfinite(feature.grad).all()
 
 
 def test_refinement_detaches_predicted_roi_coordinates():
@@ -215,6 +228,7 @@ if __name__ == "__main__":
     test_region_schema_matches_mesko4gf2_classes()
     test_direct_v9_model_loss_initializes_default_args()
     test_roi_align_shape_boundary_and_empty_input()
+    test_tiny_thop_feature_map_bypasses_native_roi_align()
     test_refinement_detaches_predicted_roi_coordinates()
     test_transformer_does_not_mix_region_instances()
     test_roi_localization_probability_coordinate_and_gradient()

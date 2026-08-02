@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torchvision.ops import roi_align
 
 from ultralytics.nn.modules.conv import Conv
@@ -41,6 +42,14 @@ class OA26RegionROIExtractor(nn.Module):
         mark_backward(projected, "roi-align-backward-complete")
         if boxes.numel() == 0:
             return projected.new_empty((0, projected.shape[1], *self.output_size))
+        # THOP's stride-based FLOPs probe evaluates the full model with a synthetic 32x32 image, leaving P4 at only
+        # 2x2. torchvision 0.19's CPU ROIAlign native kernel can segfault (not raise Python) when expanding that tiny
+        # map to the 20x20 ROI grid. Real v9 inputs are much larger; keep profiling safe with a differentiable
+        # per-image fallback only for these degenerate feature maps.
+        if min(projected.shape[-2:]) <= 2:
+            debug_event("roi-align-tiny-feature-fallback", feature_shape=tuple(projected.shape), rois=boxes.shape[0])
+            pooled = F.adaptive_avg_pool2d(projected, self.output_size)
+            return pooled.index_select(0, batch_indices.long())
         # ROI coordinates are metadata, not differentiable model values. Torchvision 0.19/CUDA builds are also more
         # robust when ROIAlign forward/backward stays in FP32 instead of entering its AMP half-precision native path.
         rois = torch.cat((batch_indices.to(boxes.dtype).unsqueeze(1), boxes.detach()), dim=1)
