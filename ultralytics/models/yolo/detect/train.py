@@ -16,6 +16,7 @@ from ultralytics.engine.trainer import BaseTrainer
 from ultralytics.models import yolo
 from ultralytics.nn.tasks import DetectionModel
 from ultralytics.utils import DEFAULT_CFG, LOGGER, RANK
+from ultralytics.utils.oa26_region_refine.training_plot_v9 import plot_v9_performance_on_epoch_end
 from ultralytics.utils.patches import override_configs
 from ultralytics.utils.plotting import plot_images, plot_labels
 from ultralytics.utils.torch_utils import torch_distributed_zero_first, unwrap_model
@@ -61,6 +62,7 @@ class DetectionTrainer(BaseTrainer):
             _callbacks (dict, optional): Dictionary of callback functions to be executed during training.
         """
         super().__init__(cfg, overrides, _callbacks)
+        self.add_callback("on_fit_epoch_end", plot_v9_performance_on_epoch_end)
 
     def build_dataset(self, img_path: str, mode: str = "train", batch: int | None = None):
         """Build YOLO Dataset for training or validation.

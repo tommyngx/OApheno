@@ -11,7 +11,11 @@ from .region_schema import (
     validate_region_schema,
 )
 from .loss import OA26RegionRefinePoseLoss
-from .training_plot import plot_v9_performance_on_epoch_end, render_pose_detection_performance
+from .training_plot_v9 import (
+    plot_v9_performance_on_epoch_end,
+    render_pose_detection_performance,
+    render_v9_training_dashboard,
+)
 
 __all__ = (
     "MAX_REGION_KEYPOINTS",
@@ -23,5 +27,6 @@ __all__ = (
     "class_keypoint_mask",
     "plot_v9_performance_on_epoch_end",
     "render_pose_detection_performance",
+    "render_v9_training_dashboard",
     "validate_region_schema",
 )

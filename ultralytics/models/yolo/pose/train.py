@@ -11,7 +11,7 @@ from ultralytics.nn.modules.oa26 import OA26HeatmapPose, OA26SimCCPose
 from ultralytics.nn.modules.oa26_region_refine import OA26RegionRefinePose
 from ultralytics.nn.tasks import PoseModel
 from ultralytics.utils import DEFAULT_CFG, RANK
-from ultralytics.utils.oa26_region_refine.training_plot import plot_v9_performance_on_epoch_end
+from ultralytics.utils.oa26_region_refine.training_plot_v9 import plot_v9_performance_on_epoch_end
 from ultralytics.utils.torch_utils import unwrap_model
 
 
