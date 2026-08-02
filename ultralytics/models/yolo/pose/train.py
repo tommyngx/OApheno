@@ -10,9 +10,9 @@ from ultralytics.models import yolo
 from ultralytics.nn.modules.oa26 import OA26HeatmapPose, OA26SimCCPose
 from ultralytics.nn.modules.oa26_region_refine import OA26RegionRefinePose
 from ultralytics.nn.tasks import PoseModel
-from ultralytics.utils import DEFAULT_CFG, LOGGER, RANK
+from ultralytics.utils import DEFAULT_CFG, RANK
 from ultralytics.utils.oa26_region_refine.training_plot import plot_v9_performance_on_epoch_end
-from ultralytics.utils.torch_utils import unset_deterministic, unwrap_model
+from ultralytics.utils.torch_utils import unwrap_model
 
 
 class PoseTrainer(yolo.detect.DetectionTrainer):
@@ -91,18 +91,6 @@ class PoseTrainer(yolo.detect.DetectionTrainer):
         """Set keypoints shape attribute of PoseModel."""
         super().set_model_attributes()
         self.model.kpt_shape = self.data["kpt_shape"]
-        head = self.model.model[-1]
-        if isinstance(head, OA26RegionRefinePose) and self.args.deterministic:
-            try:
-                # Torch 2.4/Torchvision 0.19's deterministic ROIAlign lazy compiler imports this exact Triton API.
-                from triton.compiler.compiler import triton_key  # noqa: F401
-            except (ImportError, ModuleNotFoundError):
-                LOGGER.warning(
-                    "V9: deterministic ROIAlign is unavailable with the installed Triton; "
-                    "using native ROIAlign to prevent a first-batch TorchInductor crash."
-                )
-                self.args.deterministic = False
-                unset_deterministic()
         kpt_names = self.data.get("kpt_names")
         if not kpt_names:
             names = list(map(str, range(self.model.kpt_shape[0])))
@@ -116,19 +104,14 @@ class PoseTrainer(yolo.detect.DetectionTrainer):
         if hasattr(model, "student_model"):
             model = model.student_model  # copy_attr does not copy nn.Module attributes like .model
         head = model.model[-1]
-        if getattr(head, "flow_model", None) is not None:
-            self.loss_names += ("rle_loss",)
-        if isinstance(head, OA26HeatmapPose):
-            self.loss_names += ("hm_loss", "hm_coord_loss", "hm_neighbour_loss", "hm_curve_loss")
-            if isinstance(head, OA26RegionRefinePose):
-                self.loss_names += (
-                    "region_hm_loss",
-                    "region_coord_loss",
-                    "region_neighbour_loss",
-                    "region_curve_loss",
-                )
-        elif isinstance(head, OA26SimCCPose):
-            self.loss_names += ("simcc_loss",)
+        # V9 optimizes its auxiliary RLE/heatmap/refinement terms internally, but reports only standard YOLO Pose loss.
+        if not isinstance(head, OA26RegionRefinePose):
+            if getattr(head, "flow_model", None) is not None:
+                self.loss_names += ("rle_loss",)
+            if isinstance(head, OA26HeatmapPose):
+                self.loss_names += ("hm_loss", "hm_coord_loss", "hm_neighbour_loss", "hm_curve_loss")
+            elif isinstance(head, OA26SimCCPose):
+                self.loss_names += ("simcc_loss",)
         return yolo.pose.PoseValidator(
             self.test_loader, save_dir=self.save_dir, args=copy(self.args), _callbacks=self.callbacks
         )

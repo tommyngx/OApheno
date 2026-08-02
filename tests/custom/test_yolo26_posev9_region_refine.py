@@ -72,7 +72,7 @@ def test_direct_v9_model_loss_initializes_default_args():
     loss, detached = model.loss(_synthetic_batch(), predictions)
     assert hasattr(model.criterion, "one2many") and hasattr(model.criterion, "one2one")
     assert model.criterion.one2many.hyp.task == "pose" and hasattr(model, "args")
-    assert loss.shape == detached.shape == (14,) and torch.isfinite(loss).all()
+    assert loss.shape == (14,) and detached.shape == (5,) and torch.isfinite(loss).all()
     loss.sum().backward()
 
 
@@ -107,11 +107,17 @@ def test_tiny_thop_feature_map_bypasses_native_roi_align():
     assert feature.grad is not None and torch.isfinite(feature.grad).all()
 
 
-def test_native_roi_align_dispatch_signature_and_backward():
-    """Keep the direct operator used to bypass Torchvision's hidden Triton compile covered on every platform."""
+def test_eager_roi_align_fallback_signature_and_backward():
+    """Cover the eager path used when Torchvision would otherwise invoke hidden Triton compilation."""
+    extractor = OA26RegionROIExtractor(8, d_model=8, output_size=(4, 4)).eval()
     feature = torch.randn(1, 8, 8, 8, requires_grad=True)
-    rois = torch.tensor([[0.0, 0.0, 0.0, 7.0, 7.0]])
-    output = torch.ops.torchvision.roi_align(feature, rois, 1.0, 4, 4, 2, True)
+    boxes = torch.tensor([[0.0, 0.0, 28.0, 28.0]])
+    with (
+        patch("ultralytics.nn.modules.oa26_region_refine.roi_feature_extractor._has_ops", return_value=False),
+        patch("ultralytics.nn.modules.oa26_region_refine.roi_feature_extractor.roi_align") as lazy_roi,
+    ):
+        output = extractor(feature, boxes, torch.zeros(1, dtype=torch.long), spatial_scale=0.25)
+    lazy_roi.assert_not_called()
     assert output.shape == (1, 8, 4, 4)
     output.mean().backward()
     assert feature.grad is not None and torch.isfinite(feature.grad).all()
@@ -181,7 +187,7 @@ def test_v9_build_forward_loss_and_backward():
     valid_probability = branch["region_heatmaps"].sum(dim=(-2, -1))[branch["region_valid_mask"]]
     assert torch.allclose(valid_probability, torch.ones_like(valid_probability), atol=1e-5)
     loss, detached = model.loss(_synthetic_batch(), predictions)
-    assert loss.shape == detached.shape == (14,)
+    assert loss.shape == (14,) and detached.shape == (5,)
     assert torch.isfinite(loss).all()
     loss.sum().backward()
     gradient = model.model[-1].region_refine_head.localization_head.query_projection.weight.grad
@@ -239,7 +245,7 @@ if __name__ == "__main__":
     test_direct_v9_model_loss_initializes_default_args()
     test_roi_align_shape_boundary_and_empty_input()
     test_tiny_thop_feature_map_bypasses_native_roi_align()
-    test_native_roi_align_dispatch_signature_and_backward()
+    test_eager_roi_align_fallback_signature_and_backward()
     test_refinement_detaches_predicted_roi_coordinates()
     test_transformer_does_not_mix_region_instances()
     test_roi_localization_probability_coordinate_and_gradient()

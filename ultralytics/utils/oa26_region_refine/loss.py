@@ -41,7 +41,8 @@ class OA26RegionRefinePoseLoss(OA26HeatmapPoseLoss):
         total = torch.cat((base_loss, region_loss * batch_size))
         mark_backward(total, "v9-loss-backward-enter", branch=self.debug_branch)
         debug_event("v9-loss-complete", branch=self.debug_branch, items=total.shape[0])
-        return total, torch.cat((base_detach, region_loss.detach()))
+        # Auxiliary terms remain in `total` and still train; only five standard YOLO Pose items are reported/logged.
+        return total, base_detach[:5]
 
     def region_refinement_loss(
         self, preds: dict[str, torch.Tensor], batch: dict[str, torch.Tensor]

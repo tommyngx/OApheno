@@ -3,13 +3,20 @@
 
 from __future__ import annotations
 
+from importlib import import_module
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.extension import _has_ops
 from torchvision.ops import roi_align
 
 from ultralytics.nn.modules.conv import Conv
 from ultralytics.utils.oa26_region_refine.debug import debug_event, mark_backward
+
+
+_roi_align_module = import_module("torchvision.ops.roi_align")
+_roi_align_eager = getattr(_roi_align_module._roi_align, "__wrapped__", _roi_align_module._roi_align)
 
 
 class OA26RegionROIExtractor(nn.Module):
@@ -57,19 +64,19 @@ class OA26RegionROIExtractor(nn.Module):
         debug_event("roi-align-forward-enter", feature_shape=tuple(projected.shape), rois=rois.shape[0])
         with torch.autocast(device_type=projected.device.type, enabled=False):
             roi_input, roi_boxes = projected.float(), rois.float()
-            # Torchvision 0.19 routes accelerator ROIAlign through a lazy torch.compile implementation whenever
-            # deterministic algorithms are enabled (Ultralytics defaults deterministic=True). On the school image,
-            # PyTorch 2.4 then imports an incompatible user-site Triton and fails before the first batch. The native
-            # torchvision operator is already installed and is the same path used when deterministic=False, so call
-            # it directly in this one case and avoid Torchvision's hidden Inductor/Triton compilation.
-            force_native = torch.are_deterministic_algorithms_enabled() and projected.device.type in {
-                "cuda",
-                "mps",
-                "xpu",
-            }
-            if force_native:
-                debug_event("roi-align-native-deterministic-bypass", device=projected.device.type)
-                aligned = torch.ops.torchvision.roi_align(
+            # Torchvision 0.19 otherwise invokes a hidden torch.compile path here. Its undecorated implementation is
+            # fully differentiable and avoids the incompatible user-site Triton installed on the school machine.
+            use_eager = not _has_ops() or (
+                torch.are_deterministic_algorithms_enabled() and projected.device.type in {"cuda", "mps", "xpu"}
+            )
+            if use_eager:
+                debug_event(
+                    "roi-align-eager-fallback",
+                    device=projected.device.type,
+                    native_ops=_has_ops(),
+                    deterministic=torch.are_deterministic_algorithms_enabled(),
+                )
+                aligned = _roi_align_eager(
                     roi_input,
                     roi_boxes,
                     float(spatial_scale),
